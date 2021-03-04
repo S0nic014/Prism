@@ -63,6 +63,7 @@ class PathManager(object):
         location=None,
         comment="",
         ignoreEmpty=True,
+        node=None,
     ):
         fileName = self.core.getCurrentFileName()
         fnameData = self.core.getScenefileData(fileName)
@@ -121,10 +122,17 @@ class PathManager(object):
                 data=data,
                 origin=self.core.getCurrentFileName(),
             )
-            self.core.appPlugin.isRendering = [True, outputName]
+            if node:
+                self.core.appPlugin.startedRendering(node, outputName)
+            else:
+                self.core.appPlugin.isRendering = [True, outputName]
         else:
-            if self.core.appPlugin.isRendering[0]:
-                return self.core.appPlugin.isRendering[1]
+            if node:
+                if self.core.appPlugin.isNodeRendering(node):
+                    return self.core.appPlugin.getPathFromRenderingNode(node)
+            else:
+                if self.core.appPlugin.isRendering[0]:
+                    return self.core.appPlugin.isRendering[1]
 
         return outputName
 
@@ -494,6 +502,15 @@ class PathManager(object):
                 title,
                 startPath,
             )
+
+        return path
+
+    @err_catcher(name=__name__)
+    def requestFilepath(self, title="Select File", startPath="", parent=None, fileFilter="All files (*.*)"):
+        path = ""
+        parent = parent or self.core.messageParent
+        if self.core.uiAvailable:
+            path = QFileDialog.getSaveFileName(parent, title, startPath, fileFilter)[0]
 
         return path
 

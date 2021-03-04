@@ -384,10 +384,13 @@ class ImportFileClass(object):
         self.fileNode = self.importTarget.createNode("alembic")
         self.fileNode.moveToGoodPosition()
         self.fileNode.parm("fileName").set(importPath)
-        if not self.isPrismImportNode(self.node):
+        if self.isPrismImportNode(self.node):
+            if self.node.parm("groupsAbc").eval():
+                self.fileNode.parm("groupnames").set(4)
+        else:
             self.fileNode.parm("loadmode").set(1)
             self.fileNode.parm("polysoup").set(0)
-        self.fileNode.parm("groupnames").set(4)
+            self.fileNode.parm("groupnames").set(4)
 
     @err_catcher(name=__name__)
     def importFBX(self, importPath, taskName):
@@ -507,7 +510,11 @@ class ImportFileClass(object):
             self.importShotCam(importPath)
         else:
             for node in self.importTarget.children():
-                node.destroy()
+                try:
+                    node.destroy()
+                except:
+                    self.core.popup("Import canceled.\nFailed to delete node:\n\n%s" % node.path())
+                    return
 
             self.taskName = cacheData.get("task") or ""
             extension = os.path.splitext(importPath)[1]
@@ -536,11 +543,12 @@ class ImportFileClass(object):
         cacheData = cacheData or {}
         taskName = cacheData.get("task")
         if taskName:
-            self.node.setName("IMPORT_" + taskName, unique_name=True)
-            for child in self.node.children():
-                if prevTaskName in child.name():
-                    newName = child.name().replace(prevTaskName, taskName)
-                    child.setName(newName, unique_name=True)
+            if not self.isPrismImportNode(self.node):
+                self.node.setName("IMPORT_" + taskName, unique_name=True)
+                for child in self.node.children():
+                    if prevTaskName in child.name():
+                        newName = child.name().replace(prevTaskName, taskName)
+                        child.setName(newName, unique_name=True)
 
         extension = os.path.splitext(importPath)[1]
         if extension == ".abc" and "_ShotCam_" in importPath:
@@ -807,6 +815,10 @@ class ImportFileClass(object):
         else:
             curVersion = latestVersion = ""
 
+        if curVersion == "master":
+            filepath = self.getImportPath()
+            curVersion = self.core.products.getMasterVersionLabel(filepath)
+
         self.l_curVersion.setText(curVersion or "-")
         self.l_latestVersion.setText(latestVersion or "-")
 
@@ -814,7 +826,7 @@ class ImportFileClass(object):
             if curVersion and latestVersion and curVersion != latestVersion:
                 self.importLatest(refreshUi=False)
         else:
-            if curVersion and latestVersion and curVersion != latestVersion:
+            if curVersion and latestVersion and curVersion != latestVersion and not curVersion.startswith("master"):
                 self.b_importLatest.setStyleSheet(
                     "QPushButton { background-color : rgb(150,80,0); border: none;}"
                 )

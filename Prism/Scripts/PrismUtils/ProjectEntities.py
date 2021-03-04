@@ -594,6 +594,7 @@ class ProjectEntities(object):
             if os.path.exists(localPath):
                 localData = self.core.getScenefileData(localPath)
                 del localData["filename"]
+                del localData["fullEntityName"]
                 localData["comment"] = comment
                 newPath = self.core.generateScenePath(**localData)
                 self.core.copySceneFile(localPath, newPath, mode="move")
@@ -601,6 +602,7 @@ class ProjectEntities(object):
         if os.path.exists(filepath):
             data["comment"] = comment
             del data["filename"]
+            del data["fullEntityName"]
             newPath = self.core.generateScenePath(**data)
             self.core.copySceneFile(filepath, newPath, mode="move")
 
@@ -979,7 +981,11 @@ class ProjectEntities(object):
     @err_catcher(name=__name__)
     def getHighestTaskVersion(self, dstname, getExisting=False, ignoreEmpty=False):
         taskDirs = []
-        outPaths = self.core.paths.getExportProductBasePaths().values()
+        dstname = os.path.normpath(dstname)
+        if os.path.normpath("Rendering/3dRender") in dstname or os.path.normpath("Rendering/2dRender") in dstname:
+            outPaths = self.core.paths.getRenderProductBasePaths().values()
+        else:
+            outPaths = self.core.paths.getExportProductBasePaths().values()
 
         for path in outPaths:
             dstname = dstname.replace(path, self.core.projectPath)

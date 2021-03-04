@@ -32,6 +32,8 @@
 
 
 import os
+import time
+import glob
 
 import hou
 
@@ -184,8 +186,6 @@ def executeAOVs(origin, outputName):
         origin.node, "RS_outputFileNamePrefix", val=outputName
     ):
         return [origin.state.text(0) + ": error - Publish canceled"]
-    if not origin.core.appPlugin.setNodeParm(origin.node, "RS_outputFileFormat", val=0):
-        return [origin.state.text(0) + ": error - Publish canceled"]
 
     origin.core.appPlugin.setNodeParm(origin.node, "RS_outputDisableSuffixes", val=1, severity="debug")
 
@@ -211,6 +211,15 @@ def executeAOVs(origin, outputName):
                 origin.node, parm.name(), val=outPut
             ):
                 return [origin.state.text(0) + ": error - Publish canceled"]
+
+    base, ext = os.path.splitext(outputName)
+    if ext in [".exr", ".png", ".jpg"]:
+        formatVal = ext
+    else:
+        return [origin.state.text(0) + ": error - invalid image format. Publish canceled"]
+
+    if not origin.core.appPlugin.setNodeParm(origin.node, "RS_outputFileFormat", val=formatVal):
+        return [origin.state.text(0) + ": error - could not set format. Publish canceled"]
 
     return True
 
@@ -239,6 +248,22 @@ def setResolution(origin):
 
 def executeRender(origin):
     origin.node.parm("execute").pressButton()
+    waitForRenderCompleted(origin.node)
+    return True
+
+
+def waitForRenderCompleted(node):
+    outputPath = node.parm("RS_outputFileNamePrefix").eval()
+    outputDir = os.path.dirname(outputPath)
+    globPath = outputDir + "/*.lock"
+    waitTime = 0
+    maxWaitTime = 10
+    while glob.glob(globPath):
+        time.sleep(1)
+        waitTime += 1
+        if waitTime >= maxWaitTime:
+            return False
+
     return True
 
 

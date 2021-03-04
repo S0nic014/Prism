@@ -1509,7 +1509,7 @@ class Prism_Houdini_Functions(object):
 
     @err_catcher(name=__name__)
     def onNodeCreated(self, kwargs):
-        self.createStateForNode(kwargs)
+        pass
 
     @err_catcher(name=__name__)
     def onNodeDeleted(self, kwargs):
@@ -1532,7 +1532,7 @@ class Prism_Houdini_Functions(object):
         sm = self.core.getStateManager()
 
         if kwargs["node"].type().name().startswith(self.importFile.getTypeName()):
-            parent = self.importFile.getParentFolder()
+            parent = self.importFile.getParentFolder(node=kwargs["node"])
             if parent:
                 parentExpanded = parent.isExpanded()
             state = sm.createState("ImportFile", node=kwargs["node"], setActive=True, openProductsBrowser=False, parent=parent)
@@ -1546,3 +1546,23 @@ class Prism_Houdini_Functions(object):
             parent.setExpanded(parentExpanded)
 
         return state
+
+    @err_catcher(name=__name__)
+    def detectCacheSequence(self, path):
+        folder = os.path.dirname(path)
+        fname = os.path.basename(path)
+        base, ext = self.splitExtension(fname)
+        convertedParts = []
+        for part in base.split("."):
+            if len(part) == self.core.framePadding:
+                if sys.version[0] == "2":
+                    part = unicode(part)
+
+                if part.isnumeric():
+                    part = "$F" + str(self.core.framePadding)
+
+            convertedParts.append(part)
+
+        convertedFilename = ".".join(convertedParts) + ext
+        convertedPath = os.path.join(folder, convertedFilename).replace("\\", "/")
+        return convertedPath

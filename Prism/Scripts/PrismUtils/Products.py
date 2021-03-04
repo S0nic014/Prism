@@ -355,8 +355,8 @@ class Products(object):
                 return
             entityName = data["fullEntityName"]
 
-        path = self.getProductPathFromEntity(entity, entityName, product)
-        version = self.getLatestVersionFromProductPath(path)
+        versions = self.getVersionsFromProduct(entity, entityName, product)
+        version = self.getLatestVersionFromVersions(versions)
         if not version:
             return
 
@@ -555,7 +555,11 @@ class Products(object):
         )
         logger.debug("updating master version: %s" % masterPath)
 
-        self.deleteMasterVersion(masterPath)
+        result = self.deleteMasterVersion(masterPath)
+        if not result:
+            self.core.popup("Failed to update master version. Couldn't remove old master version.")
+            return
+
         if not os.path.exists(os.path.dirname(masterPath)):
             os.makedirs(os.path.dirname(masterPath))
 
@@ -587,5 +591,19 @@ class Products(object):
     def deleteMasterVersion(self, path):
         masterFolder = os.path.dirname(os.path.dirname(path))
         if os.path.exists(masterFolder):
-            shutil.rmtree(masterFolder)
-            return True
+            try:
+                shutil.rmtree(masterFolder)
+            except Exception:
+                return False
+        return True
+
+    @err_catcher(name=__name__)
+    def getMasterVersionLabel(self, path):
+        versionName = "master"
+        versionData = self.core.paths.getCachePathData(path)
+        if "filename" in versionData:
+            versionFolder = os.path.basename(os.path.dirname(os.path.dirname(versionData["filename"])))
+            versionName, comment, user = versionFolder.split(self.core.filenameSeparator)
+            versionName = "master (%s)" % versionName
+
+        return versionName

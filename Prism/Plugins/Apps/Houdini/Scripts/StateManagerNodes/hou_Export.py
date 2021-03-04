@@ -130,6 +130,9 @@ class ExportClass(object):
             if idx != -1:
                 self.cb_outType.setCurrentIndex(idx)
                 self.typeChanged(self.cb_outType.currentText())
+
+            if self.isPrismFilecacheNode(self.node):
+                self.core.appPlugin.filecache.nodeInit(self.node, state)
         elif stateData is None:
             self.sp_rangeStart.setValue(hou.playbar.playbackRange()[0])
             self.sp_rangeEnd.setValue(hou.playbar.playbackRange()[1])
@@ -162,7 +165,7 @@ class ExportClass(object):
                 if idx != -1:
                     self.cb_sCamShot.setCurrentIndex(idx)
 
-            if fnameData.get("category"):
+            if fnameData.get("category") and not self.isPrismFilecacheNode(self.node):
                 self.l_taskName.setText(fnameData.get("category"))
                 self.b_changeTask.setStyleSheet("")
 
@@ -516,6 +519,19 @@ class ExportClass(object):
         if idx != -1:
             self.cb_rangeType.setCurrentIndex(idx)
             self.updateRange()
+            return True
+
+        return False
+
+    @err_catcher(name=__name__)
+    def getLocation(self):
+        return self.cb_outPath.currentText()
+
+    @err_catcher(name=__name__)
+    def setLocation(self, location):
+        idx = self.cb_outPath.findText(location)
+        if idx != -1:
+            self.cb_outPath.setCurrentIndex(idx)
             return True
 
         return False
@@ -1060,6 +1076,10 @@ class ExportClass(object):
             # )
 
             rangeType = self.cb_rangeType.currentText()
+            if self.isPrismFilecacheNode(self.node):
+                if self.core.appPlugin.filecache.isSingleFrame(self.node):
+                    rangeType = "Single Frame"
+
             framePadding = ".$F4" if rangeType != "Single Frame" else ""
             extension = self.cb_outType.currentText()
 
@@ -1411,6 +1431,7 @@ class ExportClass(object):
             self.b_copyLast.setEnabled(True)
 
             self.stateManager.saveStatesToScene()
+            updateMaster = True
 
             for idx, outputName in enumerate(outputNames):
                 outputName = outputName.replace("\\", "/")
@@ -1430,7 +1451,11 @@ class ExportClass(object):
                     ):
                         return [self.state.text(0) + ": error - Publish canceled"]
 
-                hou.hipFile.save()
+                if self.isPrismFilecacheNode(self.node):
+                    if self.node.parm("saveScene").eval():
+                        hou.hipFile.save()
+                else:
+                    hou.hipFile.save()
 
                 if idx == 1:
                     if not self.core.appPlugin.setNodeParm(
@@ -1445,9 +1470,11 @@ class ExportClass(object):
                 else:
                     try:
                         result = self.executeNode()
-
                         if result:
-                            if len(os.listdir(os.path.dirname(expandedOutputName))) > 0:
+                            if result == "background":
+                                updateMaster = False
+
+                            if result == "background" or len(os.listdir(os.path.dirname(expandedOutputName))) > 0:
                                 result = "Result=Success"
                             else:
                                 result = "unknown error (files do not exist)"
@@ -1470,9 +1497,10 @@ class ExportClass(object):
                     if not self.core.appPlugin.setNodeParm(transformNode, "scale", val=1):
                         return [self.state.text(0) + ": error - Publish canceled"]
 
-            useMaster = self.core.getConfig("globals", "useMasterVersion", dft=False, config="project")
-            if useMaster:
-                self.core.products.updateMasterVersion(expandedOutputName)
+            if updateMaster:
+                useMaster = self.core.getConfig("globals", "useMasterVersion", dft=False, config="project")
+                if useMaster:
+                    self.core.products.updateMasterVersion(expandedOutputName)
 
             kwargs = {
                 "state": self,
@@ -1508,7 +1536,7 @@ class ExportClass(object):
     def executeNode(self):
         result = True
         if self.isPrismFilecacheNode(self.node):
-            self.core.appPlugin.filecache.executeNode(self.node)
+            result = self.core.appPlugin.filecache.executeNode(self.node)
         else:
             self.node.parm("execute").pressButton()
 
